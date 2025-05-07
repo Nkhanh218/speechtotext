@@ -1,0 +1,239 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "audio-upload",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+
+    {
+      "parameters": {
+        "functionCode": "// Log what data we're receiving for debugging\nconst inputData = $input.all();\nconsole.log('Input data:', JSON.stringify(inputData, null, 2));\n\n// Extract audio URL or file information\nlet audioUrl = '';\nlet fileInfo = {};\n\n// Check if data is in first array item\nif (Array.isArray(inputData) && inputData.length > 0) {\n  console.log('Processing array item');\n  const item = inputData[0];\n  \n  // Check if we have binary data (for file info only)\n  if (item.binary) {\n    const binaryPropertyName = Object.keys(item.binary)[0];\n    const binaryData = item.binary[binaryPropertyName];\n    \n    fileInfo = {\n      fileName: binaryData.fileName,\n      fileSize: binaryData.fileSize,\n      mimeType: binaryData.mimeType\n    };\n  }\n  \n  // Check if we have a direct URL in the JSON\n  if (item.json && item.json.url) {\n    audioUrl = item.json.url;\n  }\n  // Or if we have an audio_url property\n  else if (item.json && item.json.audio_url) {\n    audioUrl = item.json.audio_url;\n  }\n}\n\n// If no URL found but we have webhook data with URL\nif (!audioUrl && $input.first().json) {\n  const json = $input.first().json;\n  if (json.url) {\n    audioUrl = json.url;\n  } else if (json.audio_url) {\n    audioUrl = json.audio_url;\n  }\n}\n\n// If we have binary data but no URL, we could generate a temporary URL or use a shared location\n// For now, we'll return detailed information for debugging\nif (!audioUrl) {\n  console.log('No audio URL found in the input data');\n  \n  // If we have binary data, we can mention that we have the file but need a URL\n  if (Object.keys(fileInfo).length > 0) {\n    return {\n      json: {\n        error: 'No audio URL provided, but file data is available',\n        fileInfo: fileInfo,\n        message: 'Please provide a URL to the audio file or upload it to a publicly accessible location',\n        inputStructure: JSON.stringify(inputData, null, 2)\n      }\n    };\n  } else {\n    // No URL and no file info\n    return {\n      json: {\n        error: 'No audio URL or file data found',\n        message: 'Please provide a URL to the audio file',\n        example: { url: 'https://example.com/audio.mp3' },\n        inputStructure: JSON.stringify(inputData, null, 2)\n      }\n    };\n  }\n}\n\n// Return the URL to be used with Deepgram API\nreturn {\n  json: {\n    url: audioUrl,\n    fileInfo: fileInfo\n  }\n};\n"
+      },
+      "name": "Fix Binary Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        350,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.deepgram.com/v1/listen",
+        "authentication": "headerAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Token YOUR_DEEPGRAM_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "bodyContentType": "json",
+          "body": {
+            "url": "={{ $json.url }}"
+          },
+          "query": [
+            {
+              "name": "model",
+              "value": "nova-2"
+            },
+            {
+              "name": "punctuate",
+              "value": "true"
+            },
+            {
+              "name": "smart_format",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "name": "HTTP Request to Deepgram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.hasOwnProperty('results') }}",
+              "operation": "equal",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "name": "Check If Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "=## Transcription Result\n\n{{ $json.results.channels[0].alternatives[0].transcript }}",
+        "options": {}
+      },
+      "name": "Success Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "=## Error in Transcription\n\n{{ $json }}",
+        "options": {}
+      },
+      "name": "Error Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5500/receive-transcript",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Access-Control-Allow-Origin",
+              "value": "*"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": true
+          }
+        }
+      },
+      "name": "Send Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1250,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fix Binary Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix Binary Data": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request to Deepgram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Binary File": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request to Deepgram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request to Deepgram": {
+      "main": [
+        [
+          {
+            "node": "Check If Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Success": {
+      "main": [
+        [
+          {
+            "node": "Success Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Message": {
+      "main": [
+        [
+          {
+            "node": "Send Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Message": {
+      "main": [
+        [
+          {
+            "node": "Send Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

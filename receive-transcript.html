@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhận kết quả phiên âm</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        p {
+            line-height: 1.6;
+            color: #555;
+        }
+        .loading {
+            display: block;
+            margin: 0 auto;
+            width: 80px;
+            height: 80px;
+        }
+        .loading:after {
+            content: " ";
+            display: block;
+            width: 64px;
+            height: 64px;
+            margin: 8px;
+            border-radius: 50%;
+            border: 6px solid #4a6cf7;
+            border-color: #4a6cf7 transparent #4a6cf7 transparent;
+            animation: loading 1.2s linear infinite;
+        }
+        @keyframes loading {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .transcript {
+            white-space: pre-wrap;
+            text-align: left;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+            margin-top: 20px;
+            display: none;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+            margin-top: 20px;
+            display: none;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        .btn-primary {
+            background-color: #4a6cf7;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #3a5bd9;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        .formats {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Đang nhận kết quả phiên âm...</h1>
+        <div class="loading" id="loading"></div>
+        <p>Chúng tôi đang xử lý yêu cầu của bạn. Vui lòng đợi trong giây lát.</p>
+        <div class="success" id="success">Đã nhận kết quả phiên âm thành công!</div>
+        <div class="error" id="error"></div>
+        <div class="transcript" id="transcript"></div>
+        <div class="formats" id="formats">
+            <button class="btn btn-success" id="downloadTxt">Tải xuống .TXT</button>
+            <button class="btn btn-success" id="downloadDocx">Tải xuống .DOCX</button>
+            <button class="btn btn-success" id="downloadSrt">Tải xuống .SRT</button>
+        </div>
+        <div class="buttons">
+            <button class="btn btn-primary" id="goBack">Quay lại trang chủ</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loading = document.getElementById('loading');
+            const success = document.getElementById('success');
+            const error = document.getElementById('error');
+            const transcript = document.getElementById('transcript');
+            const formats = document.getElementById('formats');
+            const goBackBtn = document.getElementById('goBack');
+            const downloadTxtBtn = document.getElementById('downloadTxt');
+            const downloadDocxBtn = document.getElementById('downloadDocx');
+            const downloadSrtBtn = document.getElementById('downloadSrt');
+            
+            let transcriptionData = null;
+
+            // Xử lý nút quay lại
+            goBackBtn.addEventListener('click', function() {
+                window.location.href = '/index.html';
+            });
+
+            // Xử lý tải xuống .TXT
+            downloadTxtBtn.addEventListener('click', function() {
+                if (!transcriptionData) return;
+                
+                let text = '';
+                if (typeof transcriptionData === 'string') {
+                    text = transcriptionData;
+                } else if (transcriptionData.transcript) {
+                    text = transcriptionData.transcript;
+                } else if (Array.isArray(transcriptionData) && transcriptionData[0]?.results?.channels[0]?.alternatives[0]?.transcript) {
+                    text = transcriptionData[0].results.channels[0].alternatives[0].transcript;
+                } else if (transcriptionData.results?.channels[0]?.alternatives[0]?.transcript) {
+                    text = transcriptionData.results.channels[0].alternatives[0].transcript;
+                }
+                
+                if (!text) {
+                    alert('Không tìm thấy nội dung phiên âm để tải xuống');
+                    return;
+                }
+                
+                downloadFile(text, 'transcript.txt', 'text/plain');
+            });
+
+            // Xử lý tải xuống .DOCX (thực tế là .RTF)
+            downloadDocxBtn.addEventListener('click', function() {
+                if (!transcriptionData) return;
+                
+                let text = '';
+                if (typeof transcriptionData === 'string') {
+                    text = transcriptionData;
+                } else if (transcriptionData.transcript) {
+                    text = transcriptionData.transcript;
+                } else if (Array.isArray(transcriptionData) && transcriptionData[0]?.results?.channels[0]?.alternatives[0]?.transcript) {
+                    text = transcriptionData[0].results.channels[0].alternatives[0].transcript;
+                } else if (transcriptionData.results?.channels[0]?.alternatives[0]?.transcript) {
+                    text = transcriptionData.results.channels[0].alternatives[0].transcript;
+                }
+                
+                if (!text) {
+                    alert('Không tìm thấy nội dung phiên âm để tải xuống');
+                    return;
+                }
+                
+                // Tạo RTF
+                const rtfHeader = '{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset0 Arial;}}\\viewkind4\\uc1\\pard\\f0\\fs20 ';
+                const rtfFooter = '}\n';
+                
+                // Xử lý ký tự đặc biệt
+                const escapedText = text.replace(/[\\{}]/g, '\\$&')
+                    .replace(/\n/g, '\\par\n')
+                    .replace(/\r/g, '')
+                    .replace(/[àáảãạâầấẩẫậăằắẳẵặ]/g, 'a')
+                    .replace(/[èéẻẽẹêềếểễệ]/g, 'e')
+                    .replace(/[ìíỉĩị]/g, 'i')
+                    .replace(/[òóỏõọôồốổỗộơờớởỡợ]/g, 'o')
+                    .replace(/[ùúủũụưừứửữự]/g, 'u')
+                    .replace(/[ỳýỷỹỵ]/g, 'y')
+                    .replace(/đ/g, 'd');
+                
+                const rtfContent = rtfHeader + escapedText + rtfFooter;
+                downloadFile(rtfContent, 'transcript.rtf', 'application/rtf');
+            });
+
+            // Xử lý tải xuống .SRT
+            downloadSrtBtn.addEventListener('click', function() {
+                if (!transcriptionData) return;
+                
+                let words = [];
+                if (Array.isArray(transcriptionData) && transcriptionData[0]?.results?.channels[0]?.alternatives[0]?.words) {
+                    words = transcriptionData[0].results.channels[0].alternatives[0].words;
+                } else if (transcriptionData.results?.channels[0]?.alternatives[0]?.words) {
+                    words = transcriptionData.results.channels[0].alternatives[0].words;
+                }
+                
+                if (words.length === 0) {
+                    alert('Không tìm thấy dữ liệu chi tiết về từng từ để tạo file SRT');
+                    return;
+                }
+                
+                // Tạo nội dung SRT
+                let srtContent = '';
+                const chunkSize = 10; // Số từ trong một subtitle
+                
+                for (let i = 0; i < words.length; i += chunkSize) {
+                    const chunk = words.slice(i, i + chunkSize);
+                    if (chunk.length === 0) continue;
+                    
+                    const chunkNum = Math.floor(i / chunkSize) + 1;
+                    const startTime = formatSrtTime(chunk[0].start);
+                    const endTime = formatSrtTime(chunk[chunk.length - 1].end);
+                    const text = chunk.map(w => w.punctuated_word || w.word).join(' ');
+                    
+                    srtContent += `${chunkNum}\n${startTime} --> ${endTime}\n${text}\n\n`;
+                }
+                
+                if (!srtContent) {
+                    alert('Không thể tạo nội dung SRT');
+                    return;
+                }
+                
+                downloadFile(srtContent, 'transcript.srt', 'text/plain');
+            });
+
+            // Hàm tải xuống file
+            function downloadFile(content, filename, type) {
+                const blob = new Blob([content], { type: type });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            }
+
+            // Hàm định dạng thời gian SRT
+            function formatSrtTime(seconds) {
+                seconds = parseFloat(seconds);
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                const ms = Math.floor((seconds - Math.floor(seconds)) * 1000);
+                
+                return `${padZero(hours, 2)}:${padZero(minutes, 2)}:${padZero(secs, 2)},${padZero(ms, 3)}`;
+            }
+
+            // Hàm thêm số 0 đằng trước
+            function padZero(num, size) {
+                let s = num + "";
+                while (s.length < size) s = "0" + s;
+                return s;
+            }
+
+            // Lắng nghe POST requests từ n8n
+            function listenForPostData() {
+                // Nếu trang được mở bằng một POST request, sử dụng dữ liệu đã có
+                if (window.location.search) {
+                    const params = new URLSearchParams(window.location.search);
+                    const data = params.get('data');
+                    if (data) {
+                        try {
+                            processReceivedData(JSON.parse(decodeURIComponent(data)));
+                        } catch (e) {
+                            showError('Lỗi xử lý dữ liệu: ' + e.message);
+                        }
+                        return;
+                    }
+                }
+
+                // Hoặc thiết lập một listener để nhận dữ liệu qua postMessage
+                window.addEventListener('message', function(event) {
+                    if (event.origin !== window.location.origin) return;
+                    
+                    if (event.data && event.data.type === 'transcription') {
+                        processReceivedData(event.data.result);
+                    }
+                });
+
+                // Tạo một POST API giả lập bằng cách lấy dữ liệu từ localStorage
+                const storedData = localStorage.getItem('transcription_data');
+                if (storedData) {
+                    try {
+                        processReceivedData(JSON.parse(storedData));
+                        localStorage.removeItem('transcription_data');
+                    } catch (e) {
+                        console.error('Lỗi xử lý dữ liệu từ localStorage:', e);
+                    }
+                }
+            }
+
+            function processReceivedData(data) {
+                console.log('Đã nhận dữ liệu:', data);
+                transcriptionData = data;
+                
+                // Hiển thị kết quả
+                loading.style.display = 'none';
+                success.style.display = 'block';
+                formats.style.display = 'flex';
+                
+                // Tìm và hiển thị nội dung văn bản
+                let transcriptText = '';
+                if (typeof data === 'string') {
+                    transcriptText = data;
+                } else if (data.transcript) {
+                    transcriptText = data.transcript;
+                } else if (Array.isArray(data) && data[0]?.results?.channels[0]?.alternatives[0]?.transcript) {
+                    transcriptText = data[0].results.channels[0].alternatives[0].transcript;
+                } else if (data.results?.channels[0]?.alternatives[0]?.transcript) {
+                    transcriptText = data.results.channels[0].alternatives[0].transcript;
+                } else {
+                    transcriptText = 'Không tìm thấy văn bản trong kết quả. Dữ liệu thô:\n\n' + JSON.stringify(data, null, 2);
+                }
+                
+                transcript.textContent = transcriptText;
+                transcript.style.display = 'block';
+            }
+
+            function showError(message) {
+                loading.style.display = 'none';
+                error.textContent = message;
+                error.style.display = 'block';
+                goBackBtn.style.display = 'block';
+            }
+
+            // Bắt đầu lắng nghe dữ liệu
+            listenForPostData();
+
+            // Mô phỏng nhận dữ liệu sau 10 giây cho việc thử nghiệm
+            setTimeout(function() {
+                if (loading.style.display !== 'none') {
+                    showError('Không nhận được dữ liệu từ server sau thời gian chờ. Vui lòng thử lại hoặc quay lại trang chủ.');
+                }
+            }, 10000);
+        });
+    </script>
+</body>
+</html>

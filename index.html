@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chuyển đổi Giọng nói thành Văn bản - DeepGram</title>
+    <!-- Cloudinary Upload Widget Script -->
+    <script src="https://upload-widget.cloudinary.com/global/all.js" type="text/javascript"></script>
+    <style>
+        :root {
+            --primary-color: #4a6cf7;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f7ff;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        .card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input {
+            position: absolute;
+            font-size: 100px;
+            opacity: 0;
+            right: 0;
+            top: 0;
+            cursor: pointer;
+        }
+
+        .file-input-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .file-input-button:hover {
+            background-color: #3a5bd9;
+        }
+
+        .file-name {
+            margin-left: 10px;
+            font-style: italic;
+        }
+
+        .webhook-url {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .submit-button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .submit-button:hover {
+            background-color: #3a5bd9;
+        }
+
+        .submit-button:disabled {
+            background-color: var(--secondary-color);
+            cursor: not-allowed;
+        }
+
+        .result {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .result-title {
+            margin: 0;
+            color: var(--primary-color);
+        }
+
+        .confidence {
+            padding: 5px 10px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .transcription {
+            background-color: var(--light-color);
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            margin-bottom: 15px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid var(--primary-color);
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            display: none;
+            background-color: #ffebee;
+            color: var(--danger-color);
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+        .supported-formats {
+            font-size: 14px;
+            color: var(--secondary-color);
+            margin-top: 8px;
+        }
+
+        .copy-button {
+            background-color: var(--light-color);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+
+        .copy-button:hover {
+            background-color: #e2e6ea;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px;
+            color: var(--secondary-color);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Chuyển đổi Giọng nói thành Văn bản</h1>
+            <p>Sử dụng DeepGram API để chuyển đổi file âm thanh thành văn bản chính xác</p>
+        </header>
+
+        <div class="card">
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label for="webhookUrl">URL Webhook:</label>
+                    <input type="text" id="webhookUrl" class="webhook-url" placeholder="Nhập URL webhook của n8n (ví dụ: http://localhost:5678/webhook/speech-to-text)" value="http://localhost:5678/webhook/speech-to-text">
+                </div>
+
+                <div class="form-group">
+                    <label>Chọn file âm thanh:</label>
+                    <div class="file-input-wrapper">
+                        <button type="button" id="cloudinary-upload-button" class="file-input-button">Tải lên file âm thanh</button>
+                    </div>
+                    <span id="fileName" class="file-name">Chưa có file nào được chọn</span>
+                    <div id="file-details" style="display: none; margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px;">
+                    </div>
+                    <div class="supported-formats">
+                        Định dạng hỗ trợ: MP3, WAV, OGG, FLAC, M4A
+                    </div>
+                    <input type="hidden" id="cloudinaryUrl" name="cloudinaryUrl">
+                    <input type="hidden" id="cloudinaryPublicId" name="cloudinaryPublicId">
+                </div>
+
+                <button type="submit" id="submitButton" class="submit-button" disabled>Chuyển đổi</button>
+            </form>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Đang xử lý file âm thanh...</p>
+            </div>
+
+            <div id="error" class="error"></div>
+        </div>
+
+        <div id="result" class="result card">
+            <div class="result-header">
+                <h2 class="result-title">Kết quả chuyển đổi</h2>
+                <span id="confidence" class="confidence">Độ tin cậy: 0%</span>
+            </div>
+
+            <div id="transcription" class="transcription"></div>
+
+            <div class="result-actions" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button id="copyButton" class="copy-button">Sao chép văn bản</button>
+
+                <div class="download-options" style="display: flex; gap: 5px;">
+                    <button id="downloadTxtButton" class="copy-button" style="background-color: #28a745; color: white;">Tải xuống .TXT</button>
+                    <button id="downloadSrtButton" class="copy-button" style="background-color: #fd7e14; color: white;">Tải xuống .SRT</button>
+                    <button id="downloadWordButton" class="copy-button" style="background-color: #17a2b8; color: white;">Tải xuống .DOCX</button>
+                </div>
+
+                <button id="debugButton" class="copy-button" style="background-color: #6c757d; color: white; margin-left: auto;">Hiển thị dữ liệu thô</button>
+            </div>
+
+            <div id="word-by-word" class="word-timeline" style="margin-top: 20px; display: none;">
+                <h3>Nội dung theo từng từ</h3>
+                <div id="words-container" style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; padding: 10px;">
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by DeepGram API & n8n | Tạo bởi Augment Agent</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadForm = document.getElementById('uploadForm');
+            const fileNameSpan = document.getElementById('fileName');
+            const submitButton = document.getElementById('submitButton');
+            const loadingDiv = document.getElementById('loading');
+            const resultDiv = document.getElementById('result');
+            const confidenceSpan = document.getElementById('confidence');
+            const transcriptionDiv = document.getElementById('transcription');
+            const copyButton = document.getElementById('copyButton');
+            const errorDiv = document.getElementById('error');
+            const webhookUrlInput = document.getElementById('webhookUrl');
+            const cloudinaryUrlInput = document.getElementById('cloudinaryUrl');
+            const cloudinaryPublicIdInput = document.getElementById('cloudinaryPublicId');
+            const fileDetailsDiv = document.getElementById('file-details');
+            const cloudinaryUploadButton = document.getElementById('cloudinary-upload-button');
+
+            // Khởi tạo Cloudinary Upload Widget
+            const cloudinaryWidget = cloudinary.createUploadWidget(
+                {
+                    cloudName: 'doh7f7ja9', // Thay thế bằng Cloudinary cloud name của bạn
+                    uploadPreset: 'voice_transcription', // Thay thế bằng upload preset unsigned của bạn
+                    sources: ['local', 'url', 'camera', 'google_drive', 'dropbox'],
+                    multiple: false,
+                    maxFileSize: 50000000, // ~50MB
+                    resourceType: 'video', // Sử dụng 'video' để hỗ trợ các file audio
+                    acceptedFormats: ['audio'],
+                    showAdvancedOptions: false,
+                    cropping: false,
+                    showSkipCropButton: false,
+                    styles: {
+                        palette: {
+                            window: '#FFFFFF',
+                            windowBorder: '#90A0B3',
+                            tabIcon: '#0078FF',
+                            menuIcons: '#5A616A',
+                            textDark: '#000000',
+                            textLight: '#FFFFFF',
+                            link: '#0078FF',
+                            action: '#FF620C',
+                            inactiveTabIcon: '#0E2F5A',
+                            error: '#F44235',
+                            inProgress: '#0078FF',
+                            complete: '#20B832',
+                            sourceBg: '#E4EBF1'
+                        }
+                    }
+                },
+                (error, result) => {
+                    if (error) {
+                        showError(`Lỗi tải lên: ${error.message || 'Không rõ lỗi'}`);
+                        return;
+                    }
+
+                    if (result.event === 'success') {
+                        // Lấy thông tin file đã tải lên thành công
+                        const file = result.info;
+
+                        // Cập nhật UI
+                        fileNameSpan.textContent = file.original_filename;
+                        fileDetailsDiv.innerHTML = `
+                            <p><strong>Tên file:</strong> ${file.original_filename}</p>
+                            <p><strong>Kích thước:</strong> ${(file.bytes/1024/1024).toFixed(2)} MB</p>
+                            <p><strong>Định dạng:</strong> ${file.format}</p>
+                            <p><strong>Thời lượng:</strong> ${file.duration ? (file.duration + ' giây') : 'Không xác định'}</p>
+                        `;
+                        fileDetailsDiv.style.display = 'block';
+
+                        // Lưu URL và public ID của file
+                        cloudinaryUrlInput.value = file.secure_url;
+                        cloudinaryPublicIdInput.value = file.public_id;
+
+                        // Kích hoạt nút chuyển đổi
+                        submitButton.disabled = false;
+
+                        // Ẩn kết quả và lỗi cũ
+                        resultDiv.style.display = 'none';
+                        errorDiv.style.display = 'none';
+                    }
+                }
+            );
+
+            // Mở Cloudinary Upload Widget khi nhấn nút tải lên
+            cloudinaryUploadButton.addEventListener('click', function() {
+                cloudinaryWidget.open();
+            });
+
+            // Xử lý khi submit form
+            uploadForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const cloudinaryUrl = cloudinaryUrlInput.value.trim();
+                const webhookUrl = webhookUrlInput.value.trim();
+
+                if (!cloudinaryUrl) {
+                    showError('Vui lòng tải lên một file âm thanh trước.');
+                    return;
+                }
+
+                if (!webhookUrl) {
+                    showError('Vui lòng nhập URL webhook.');
+                    return;
+                }
+
+                // Ẩn kết quả và lỗi cũ
+                resultDiv.style.display = 'none';
+                errorDiv.style.display = 'none';
+
+                // Hiển thị loading
+                loadingDiv.style.display = 'block';
+                submitButton.disabled = true;
+
+                // Tạo JSON payload với Cloudinary URL
+                const payload = {
+                    url: cloudinaryUrl,
+                    public_id: cloudinaryPublicIdInput.value.trim()
+                };
+
+                // Luôn gửi request đến webhook
+                console.log('Gửi request đến webhook:', webhookUrl);
+                console.log('Payload:', payload);
+                fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Lỗi HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Webhook response data:', data);
+
+                    // Lưu dữ liệu kết quả vào localStorage
+                    if (data) {
+                        localStorage.setItem('transcription_data', JSON.stringify(data));
+                    }
+
+                    // Hỏi người dùng có muốn chuyển đến trang kết quả không
+                    const openResultPage = confirm('Đã gửi yêu cầu thành công. Bạn có muốn chuyển đến trang kết quả ngay không?');
+
+                    if (openResultPage) {
+                        // Lưu URL audio vào localStorage để trang kết quả có thể sử dụng
+                        localStorage.setItem('cloud_audio_url', payload.url);
+
+                        // Chuyển hướng đến trang kết quả
+                        window.location.href = 'receive-transcript.html';
+                    } else {
+                        // Sau khi nhận phản hồi từ webhook, hiển thị dữ liệu
+                        console.log('Dữ liệu nhận được từ server:', data);
+
+                        // Xử lý và hiển thị dữ liệu trực tiếp trên trang hiện tại
+                        // Ẩn loading
+                        loadingDiv.style.display = 'none';
+                        submitButton.disabled = false;
+
+                        // Lưu trữ dữ liệu hoàn chỉnh để sử dụng với các chức năng khác
+                        window.transcriptionData = data;
+
+                        // Xử lý dữ liệu từ DeepGram và hiển thị kết quả
+                        processTranscriptionData(data);
+
+                        // Thêm debug button event listener
+                        const debugButton = document.getElementById('debugButton');
+                        if (debugButton) {
+                            if (!debugButton.hasEventListener) {
+                                debugButton.addEventListener('click', function() {
+                                    showRawData(data);
+                                });
+                                debugButton.hasEventListener = true;
+                            }
+                        }
+
+                        // Hiển thị kết quả
+                        resultDiv.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('Lỗi khi gửi webhook:', error);
+                    loadingDiv.style.display = 'none';
+                    submitButton.disabled = false;
+                    showError(`Lỗi: ${error.message}`);
+                });
+
+                // Hàm xử lý và hiển thị dữ liệu chuyển đổi
+                function processTranscriptionData(data) {
+                    // Kiểm tra dữ liệu
+                    if (!data) {
+                        showError('Không nhận được dữ liệu.');
+                        return;
+                    }
+
+                    // Tìm văn bản từ các định dạng khác nhau của DeepGram
+                    let transcriptText = '';
+                    let confidence = 0;
+                    let words = [];
+
+                    if (typeof data === 'string') {
+                        try {
+                            data = JSON.parse(data);
+                        } catch (e) {
+                            transcriptText = data;
+                        }
+                    }
+
+                    if (data.transcript) {
+                        // Định dạng đơn giản
+                        transcriptText = data.transcript;
+                        confidence = parseFloat(data.confidence || 0);
+                    } else if (data.results && data.results.channels &&
+                              data.results.channels[0].alternatives &&
+                              data.results.channels[0].alternatives[0]) {
+                        // Định dạng đầy đủ từ DeepGram
+                        const alternative = data.results.channels[0].alternatives[0];
+                        transcriptText = alternative.transcript;
+                        confidence = parseFloat(alternative.confidence || 0);
+                        words = alternative.words || [];
+                    } else if (Array.isArray(data) && data.length > 0 && data[0].results) {
+                        // Định dạng mảng từ DeepGram
+                        const item = data[0];
+                        if (item.results && item.results.channels &&
+                            item.results.channels[0].alternatives &&
+                            item.results.channels[0].alternatives[0]) {
+                            const alternative = item.results.channels[0].alternatives[0];
+                            transcriptText = alternative.transcript;
+                            confidence = parseFloat(alternative.confidence || 0);
+                            words = alternative.words || [];
+                        }
+                    }
+
+                    // Hiển thị văn bản và độ tin cậy
+                    if (transcriptText) {
+                        // Hiển thị văn bản
+                        transcriptionDiv.textContent = transcriptText;
+
+                        // Hiển thị độ tin cậy
+                        confidenceSpan.textContent = `Độ tin cậy: ${(confidence * 100).toFixed(0)}%`;
+
+                        // Hiển thị kết quả
+                        resultDiv.style.display = 'block';
+
+                        // Nếu có dữ liệu từng từ, hiển thị phần từng từ
+                        displayWordByWord(words);
+                    } else {
+                        showError('Không tìm thấy văn bản trong kết quả.');
+                    }
+                }
+
+                // Hàm hiển thị từng từ
+                function displayWordByWord(words) {
+                    if (!words || words.length === 0) {
+                        document.getElementById('word-by-word').style.display = 'none';
+                        return;
+                    }
+
+                    const wordsContainer = document.getElementById('words-container');
+                    wordsContainer.innerHTML = '';
+
+                    words.forEach(word => {
+                        const wordSpan = document.createElement('span');
+                        wordSpan.classList.add('word-item');
+                        wordSpan.style.display = 'inline-block';
+                        wordSpan.style.margin = '3px';
+                        wordSpan.style.padding = '2px 5px';
+                        wordSpan.style.borderRadius = '3px';
+
+                        // Màu sắc dựa trên độ tin cậy
+                        const wordConfidence = parseFloat(word.confidence || 0);
+                        if (wordConfidence > 0.8) {
+                            wordSpan.style.backgroundColor = '#d4edda';
+                        } else if (wordConfidence > 0.6) {
+                            wordSpan.style.backgroundColor = '#fff3cd';
+                        } else {
+                            wordSpan.style.backgroundColor = '#f8d7da';
+                        }
+
+                        wordSpan.innerHTML = `${word.punctuated_word || word.word} <small>${(wordConfidence * 100).toFixed(0)}%</small>`;
+                        wordSpan.title = `Bắt đầu: ${word.start}s, Kết thúc: ${word.end}s`;
+
+                        wordsContainer.appendChild(wordSpan);
+                    });
+
+                    document.getElementById('word-by-word').style.display = 'block';
+                }
+
+                // Hàm hiển thị dữ liệu thô để debug
+                function showRawData(data) {
+                    // Tạo container cho dữ liệu thô
+                    const rawDataContainer = document.createElement('div');
+                    rawDataContainer.id = 'raw-data';
+                    rawDataContainer.style.display = 'none';
+                    rawDataContainer.style.marginTop = '20px';
+                    rawDataContainer.style.padding = '10px';
+                    rawDataContainer.style.backgroundColor = '#f8f9fa';
+                    rawDataContainer.style.border = '1px solid #ddd';
+                    rawDataContainer.style.borderRadius = '5px';
+                    rawDataContainer.style.fontFamily = 'monospace';
+                    rawDataContainer.style.fontSize = '12px';
+                    rawDataContainer.style.whiteSpace = 'pre-wrap';
+                    rawDataContainer.style.overflow = 'auto';
+                    rawDataContainer.style.maxHeight = '300px';
+                    rawDataContainer.innerHTML = `<h4>Dữ liệu thô từ server:</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+                    // Thêm vào kết quả div
+                    if (!document.getElementById('raw-data')) {
+                        document.getElementById('result').appendChild(rawDataContainer);
+                    } else {
+                        document.getElementById('raw-data').innerHTML = `<h4>Dữ liệu thô từ server:</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                        document.getElementById('raw-data').style.display = 'none'; // Ẩn mặc định
+                    }
+
+                    // Thêm nút toggle
+                    if (!document.getElementById('toggle-raw-data')) {
+                        const toggleButton = document.createElement('button');
+                        toggleButton.id = 'toggle-raw-data';
+                        toggleButton.classList.add('btn', 'btn-sm', 'btn-secondary');
+                        toggleButton.textContent = 'Hiển thị/Ẩn dữ liệu thô';
+                        toggleButton.style.marginTop = '10px';
+                        toggleButton.addEventListener('click', function() {
+                            const rawData = document.getElementById('raw-data');
+                            if (rawData.style.display === 'none') {
+                                rawData.style.display = 'block';
+                            } else {
+                                rawData.style.display = 'none';
+                            }
+                        });
+                        document.getElementById('result').appendChild(toggleButton);
+                    }
+                }
+            });
+
+            // Xử lý khi nhấn nút sao chép
+            copyButton.addEventListener('click', function() {
+                const text = transcriptionDiv.textContent;
+                navigator.clipboard.writeText(text).then(function() {
+                    copyButton.textContent = 'Đã sao chép!';
+                    setTimeout(function() {
+                        copyButton.textContent = 'Sao chép văn bản';
+                    }, 2000);
+                }).catch(function(err) {
+                    showError('Không thể sao chép văn bản: ' + err);
+                });
+            });
+
+            // Xử lý tải xuống file .TXT
+            const downloadTxtButton = document.getElementById('downloadTxtButton');
+            downloadTxtButton.addEventListener('click', function() {
+                const text = transcriptionDiv.textContent;
+                if (!text) {
+                    showError('Không có nội dung để tải xuống');
+                    return;
+                }
+
+                // Tạo file .txt
+                const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+
+                // Tạo link tải xuống
+                const a = document.createElement('a');
+                const filename = 'transcript_' + new Date().toISOString().replace(/[:.]/g, '-') + '.txt';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+
+                // Dọn dẹp
+                setTimeout(function() {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            });
+
+            // Xử lý tải xuống file .SRT
+            const downloadSrtButton = document.getElementById('downloadSrtButton');
+            downloadSrtButton.addEventListener('click', function() {
+                // Kiểm tra xem có dữ liệu từ DeepGram không
+                if (!window.transcriptionData) {
+                    showError('Không có dữ liệu để tạo file SRT');
+                    return;
+                }
+
+                let words = [];
+
+                // Tìm dữ liệu từ
+                if (Array.isArray(window.transcriptionData) && window.transcriptionData[0] &&
+                    window.transcriptionData[0].results && window.transcriptionData[0].results.channels &&
+                    window.transcriptionData[0].results.channels[0].alternatives &&
+                    window.transcriptionData[0].results.channels[0].alternatives[0].words) {
+                    words = window.transcriptionData[0].results.channels[0].alternatives[0].words;
+                } else if (window.transcriptionData.results && window.transcriptionData.results.channels &&
+                           window.transcriptionData.results.channels[0].alternatives &&
+                           window.transcriptionData.results.channels[0].alternatives[0].words) {
+                    words = window.transcriptionData.results.channels[0].alternatives[0].words;
+                }
+
+                if (words.length === 0) {
+                    showError('Không tìm thấy dữ liệu từ để tạo file SRT');
+                    return;
+                }
+
+                // Tạo nội dung SRT
+                let srtContent = '';
+                const chunkSize = 10; // Số từ trong một subtitle
+
+                for (let i = 0; i < words.length; i += chunkSize) {
+                    const chunk = words.slice(i, i + chunkSize);
+                    if (chunk.length === 0) continue;
+
+                    const chunkNum = Math.floor(i / chunkSize) + 1;
+                    const startTime = formatSrtTime(chunk[0].start);
+                    const endTime = formatSrtTime(chunk[chunk.length - 1].end);
+                    const text = chunk.map(w => w.punctuated_word || w.word).join(' ');
+
+                    srtContent += `${chunkNum}\n${startTime} --> ${endTime}\n${text}\n\n`;
+                }
+
+                // Tạo file .srt
+                const blob = new Blob([srtContent], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+
+                // Tạo link tải xuống
+                const a = document.createElement('a');
+                const filename = 'transcript_' + new Date().toISOString().replace(/[:.]/g, '-') + '.srt';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+
+                // Dọn dẹp
+                setTimeout(function() {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            });
+
+            // Xử lý tải xuống file .DOCX
+            const downloadWordButton = document.getElementById('downloadWordButton');
+            downloadWordButton.addEventListener('click', function() {
+                // Thông báo không hỗ trợ tạo file Word trực tiếp trong trình duyệt
+                // Để đơn giản, chúng ta sử dụng RTF thay vì DOCX
+                const text = transcriptionDiv.textContent;
+                if (!text) {
+                    showError('Không có nội dung để tải xuống');
+                    return;
+                }
+
+                // Tạo nội dung RTF cơ bản
+                const rtfHeader = '{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset0 Arial;}}\\viewkind4\\uc1\\pard\\f0\\fs20 ';
+                const rtfFooter = '}\n';
+
+                // Phải xử lý các ký tự đặc biệt trong RTF
+                const escapedText = text.replace(/[\\{}]/g, '\\$&')
+                                       .replace(/\n/g, '\\par\n')
+                                       .replace(/\r/g, '')
+                                       .replace(/[àáảãạâầấẩẫậăằắẳẵặ]/g, 'a')
+                                       .replace(/[èéẻẽẹêềếểễệ]/g, 'e')
+                                       .replace(/[ìíỉĩị]/g, 'i')
+                                       .replace(/[òóỏõọôồốổỗộơờớởỡợ]/g, 'o')
+                                       .replace(/[ùúủũụưừứửữự]/g, 'u')
+                                       .replace(/[ỳýỷỹỵ]/g, 'y')
+                                       .replace(/đ/g, 'd');
+
+                const rtfContent = rtfHeader + escapedText + rtfFooter;
+
+                // Tạo file .rtf
+                const blob = new Blob([rtfContent], { type: 'application/rtf' });
+                const url = URL.createObjectURL(blob);
+
+                // Tạo link tải xuống
+                const a = document.createElement('a');
+                const filename = 'transcript_' + new Date().toISOString().replace(/[:.]/g, '-') + '.rtf';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+
+                // Dọn dẹp
+                setTimeout(function() {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            });
+
+            // Hàm hỗ trợ để định dạng thời gian trong file SRT
+            function formatSrtTime(seconds) {
+                seconds = parseFloat(seconds);
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                const ms = Math.floor((seconds - Math.floor(seconds)) * 1000);
+
+                return `${padZero(hours, 2)}:${padZero(minutes, 2)}:${padZero(secs, 2)},${padZero(ms, 3)}`;
+            }
+
+            // Xử lý cho nút debug
+            const debugButton = document.getElementById('debugButton');
+            debugButton.addEventListener('click', function() {
+                const rawDataDiv = document.getElementById('raw-data');
+                if (rawDataDiv) {
+                    if (rawDataDiv.style.display === 'none') {
+                        rawDataDiv.style.display = 'block';
+                        debugButton.textContent = 'Ẩn dữ liệu thô';
+                    } else {
+                        rawDataDiv.style.display = 'none';
+                        debugButton.textContent = 'Hiển thị dữ liệu thô';
+                    }
+                }
+            });
+
+            // Hàm để thêm số 0 đằng trước
+            function padZero(num, size) {
+                let s = num + "";
+                while (s.length < size) s = "0" + s;
+                return s;
+            }
+
+            // Hàm hiển thị lỗi
+            function showError(message) {
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
+
