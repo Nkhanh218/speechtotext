@@ -1,5 +1,5 @@
-// Serverless function để xử lý POST requests từ n8n
-export default function handler(req, res) {
+// Serverless function để xử lý POST requests và chuyển tiếp đến n8n webhook
+export default async function handler(req, res) {
   // Cho phép CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,7 +11,7 @@ export default function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Xử lý POST request từ n8n
+  // Xử lý POST request 
   if (req.method === 'POST') {
     try {
       // Nhận data từ body
@@ -22,12 +22,50 @@ export default function handler(req, res) {
         return res.status(400).json({ error: 'Không nhận được dữ liệu' });
       }
 
-      // Tạo URL với dữ liệu dưới dạng query parameter
-      const encodedData = encodeURIComponent(JSON.stringify(data));
-      const redirectUrl = `/receive-transcript.html?data=${encodedData}`;
-
-      // Chuyển hướng đến trang receive-transcript.html với dữ liệu
-      return res.redirect(302, redirectUrl);
+      // Lấy URL webhook n8n từ environment variable hoặc sử dụng URL mặc định
+      // Nếu bạn đã có URL webhook của n8n, hãy thay thế URL dưới đây
+      const n8nWebhookUrl = 'https://namkhanh6503.app.n8n.cloud/webhook-test/audio-upload';
+      
+      try {
+        // Gọi webhook n8n
+        const n8nResponse = await fetch(n8nWebhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
+        
+        // Lấy kết quả từ n8n
+        let responseData;
+        const contentType = n8nResponse.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          responseData = await n8nResponse.json();
+        } else {
+          responseData = await n8nResponse.text();
+          try {
+            // Cố gắng parse nếu nó là JSON string
+            responseData = JSON.parse(responseData);
+          } catch (e) {
+            // Giữ nguyên dạng text nếu không phải JSON
+          }
+        }
+        
+        // Encode dữ liệu kết quả cho query parameter
+        const encodedData = encodeURIComponent(JSON.stringify(responseData || data));
+        const redirectUrl = `/receive-transcript.html?data=${encodedData}`;
+        
+        // Chuyển hướng đến trang receive-transcript.html với dữ liệu
+        return res.redirect(302, redirectUrl);
+        
+      } catch (webhookError) {
+        console.error('Lỗi khi gọi webhook n8n:', webhookError);
+        
+        // Vẫn chuyển hướng đến trang kết quả với dữ liệu gốc nếu gọi webhook thất bại
+        const encodedData = encodeURIComponent(JSON.stringify(data));
+        const redirectUrl = `/receive-transcript.html?data=${encodedData}&error=${encodeURIComponent(webhookError.message)}`;
+        return res.redirect(302, redirectUrl);
+      }
     } catch (error) {
       console.error('Lỗi xử lý request:', error);
       return res.status(500).json({ error: 'Lỗi xử lý request', details: error.message });
