@@ -410,10 +410,13 @@
                     public_id: cloudinaryPublicIdInput.value.trim()
                 };
 
-                // Luôn gửi request đến webhook
-                console.log('Gửi request đến webhook:', webhookUrl);
+                // Sử dụng API endpoint của Vercel thay vì trực tiếp đến n8n
+                const apiEndpoint = window.location.origin + '/api/receive-transcript';
+                console.log('Gửi request đến API endpoint:', apiEndpoint);
                 console.log('Payload:', payload);
-                fetch(webhookUrl, {
+                
+                // Gửi request đến API endpoint của Vercel
+                fetch(apiEndpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
