@@ -425,12 +425,24 @@
                     body: JSON.stringify(payload)
                 })
                 .then(response => {
+                    // Kiểm tra nếu response là redirect
+                    if (response.redirected) {
+                        // Nếu được chuyển hướng, chuyển đến URL đích
+                        window.location.href = response.url;
+                        return null; // Dừng chuỗi then vì đã chuyển hướng
+                    }
+                    
                     if (!response.ok) {
                         throw new Error(`Lỗi HTTP: ${response.status}`);
                     }
+                    
+                    // Nếu không phải redirect, chỉ khi đó mới parse JSON
                     return response.json();
                 })
                 .then(data => {
+                    // Nếu đã chuyển hướng, data sẽ là null và đoạn code này sẽ không chạy
+                    if (!data) return;
+                    
                     console.log('Webhook response data:', data);
 
                     // Lưu dữ liệu kết quả vào localStorage
