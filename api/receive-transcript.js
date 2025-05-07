@@ -51,12 +51,64 @@ export default async function handler(req, res) {
           }
         }
         
-        // Encode dữ liệu kết quả cho query parameter
-        const encodedData = encodeURIComponent(JSON.stringify(responseData || data));
-        const redirectUrl = `/receive-transcript.html?data=${encodedData}`;
+        // Lấy văn bản từ kết quả (nếu có)
+        let transcriptText = '';
+        // Xử lý kết quả từ n8n hoặc DeepGram
+        if (responseData && responseData.results && responseData.results.channels &&
+            responseData.results.channels[0] && responseData.results.channels[0].alternatives &&
+            responseData.results.channels[0].alternatives[0] && responseData.results.channels[0].alternatives[0].transcript) {
+          transcriptText = responseData.results.channels[0].alternatives[0].transcript;
+        } else if (Array.isArray(responseData) && responseData[0] && responseData[0].results && 
+                  responseData[0].results.channels && responseData[0].results.channels[0] && 
+                  responseData[0].results.channels[0].alternatives && responseData[0].results.channels[0].alternatives[0] &&
+                  responseData[0].results.channels[0].alternatives[0].transcript) {
+          transcriptText = responseData[0].results.channels[0].alternatives[0].transcript;
+        } else if (typeof responseData === 'string') {
+          try {
+            const parsedData = JSON.parse(responseData);
+            if (parsedData.transcript) {
+              transcriptText = parsedData.transcript;
+            } else if (parsedData.results && parsedData.results.channels &&
+                      parsedData.results.channels[0] && parsedData.results.channels[0].alternatives &&
+                      parsedData.results.channels[0].alternatives[0] && parsedData.results.channels[0].alternatives[0].transcript) {
+              transcriptText = parsedData.results.channels[0].alternatives[0].transcript;
+            }
+          } catch (e) {
+            // Nếu không phải JSON, có thể đã là văn bản
+            transcriptText = responseData;
+          }
+        }
         
-        // Chuyển hướng đến trang receive-transcript.html với dữ liệu
-        return res.redirect(302, redirectUrl);
+        // Kiểm tra các tiêu chí cho request API vs browser
+        const acceptHeader = req.headers.accept || '';
+        const queryFormat = req.query.format || '';
+        const userAgent = req.headers['user-agent'] || '';
+        
+        // Nếu là request yêu cầu văn bản thô (format=text)
+        if (queryFormat.toLowerCase() === 'text') {
+          // Trả về văn bản
+          console.log('Trả về văn bản thô');
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          res.setHeader('Content-Disposition', 'attachment; filename="transcript.txt"');
+          return res.status(200).send(transcriptText);
+        }
+        // Nếu là request từ n8n hoặc có format=json, hoặc có header JSON
+        // hoặc không phải từ trình duyệt
+        else if (queryFormat.toLowerCase() === 'json' ||
+            acceptHeader.includes('application/json') ||
+            !userAgent.includes('Mozilla') && !userAgent.includes('Chrome') && !userAgent.includes('Safari') && !userAgent.includes('Edge') && !userAgent.includes('MSIE')) {
+          // Trả về JSON cho n8n hoặc các API client khác
+          console.log('Trả về JSON cho API client');
+          return res.status(200).json(responseData || data);
+        } 
+        // Trường hợp còn lại cho trình duyệt
+        else {
+          // Trả về chuyển hướng cho trình duyệt
+          console.log('Trả về chuyển hướng cho trình duyệt');
+          const encodedData = encodeURIComponent(JSON.stringify(responseData || data));
+          const redirectUrl = `/receive-transcript.html?data=${encodedData}`;
+          return res.redirect(302, redirectUrl);
+        }
         
       } catch (webhookError) {
         console.error('Lỗi khi gọi webhook n8n:', webhookError);
