@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.n8n.cloud https://*.cloudinary.com https://api.cloudinary.com https://*.static.domains https://static.app; script-src 'self' 'unsafe-inline' https://upload-widget.cloudinary.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.cloudinary.com; frame-src 'self' https://*.cloudinary.com https://upload-widget.cloudinary.com; media-src 'self' https://*.cloudinary.com; worker-src 'self' blob:;">
+    <title>Nhận kết quả phiên âm</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        p {
+            line-height: 1.6;
+            color: #555;
+        }
+        .loading {
+            display: block;
+            margin: 0 auto;
+            width: 80px;
+            height: 80px;
+        }
+        .loading:after {
+            content: " ";
+            display: block;
+            width: 64px;
+            height: 64px;
+            margin: 8px;
+            border-radius: 50%;
+            border: 6px solid #4a6cf7;
+            border-color: #4a6cf7 transparent #4a6cf7 transparent;
+            animation: loading 1.2s linear infinite;
+        }
+        @keyframes loading {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .transcript {
+            white-space: pre-wrap;
+            text-align: left;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+            margin-top: 20px;
+            display: none;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+            margin-top: 20px;
+            display: none;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        .btn-primary {
+            background-color: #4a6cf7;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #3a5bd9;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        .formats {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+            display: none;
+        }
+        .audio-upload {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .file-input {
+            display: none;
+        }
+        .file-label {
+            padding: 10px 20px;
+            background-color: #4a6cf7;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        .file-name {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        .process-btn {
+            margin-top: 15px;
+            padding: 10px 25px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            display: none;
+        }
+        .process-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+    <!-- Thêm script tích hợp n8n -->
+    <script src="n8n-direct-integration.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Chuyển đổi Giọng nói thành Văn bản</h1>
+        
+        <div class="audio-upload" id="uploadSection">
+            <label for="audioFile" class="file-label">Chọn file âm thanh</label>
+            <input type="file" id="audioFile" class="file-input" accept="audio/*">
+            <div class="file-name" id="fileName">Chưa có file nào được chọn</div>
+            <button id="processBtn" class="process-btn" disabled>Xử lý</button>
+        </div>
+        
+        <div class="loading" id="loading" style="display: none;"></div>
+        <p id="statusMessage">Chọn file âm thanh để bắt đầu chuyển đổi.</p>
+        
+        <div class="success" id="success">Đã chuyển đổi thành công!</div>
+        <div class="error" id="error"></div>
+        
+        <div class="transcript" id="transcript"></div>
+        
+        <div class="formats" id="formats">
+            <button class="btn btn-success" id="downloadTXT">Tải xuống .TXT</button>
+            <button class="btn btn-success" id="downloadDOCX">Tải xuống .DOCX</button>
+            <button class="btn btn-success" id="downloadSRT">Tải xuống .SRT</button>
+        </div>
+        
+        <div class="buttons">
+            <button class="btn btn-primary" id="goBack">Quay lại trang chủ</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Các phần tử DOM
+            const audioFileInput = document.getElementById('audioFile');
+            const fileNameDisplay = document.getElementById('fileName');
+            const processBtn = document.getElementById('processBtn');
+            const loadingElement = document.getElementById('loading');
+            const statusMessage = document.getElementById('statusMessage');
+            const successMessage = document.getElementById('success');
+            const errorMessage = document.getElementById('error');
+            const transcriptElement = document.getElementById('transcript');
+            const formatsSection = document.getElementById('formats');
+            const goBackBtn = document.getElementById('goBack');
+            
+            // URL webhook n8n - thay đổi URL này thành URL webhook của bạn
+            const n8nWebhookUrl = 'YOUR_N8N_WEBHOOK_URL';
+            
+            // Khởi tạo tích hợp n8n
+            window.n8nIntegration.init({
+                webhookUrl: n8nWebhookUrl
+            });
+            
+            // Xử lý khi người dùng chọn file
+            audioFileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    const file = this.files[0];
+                    fileNameDisplay.textContent = file.name;
+                    processBtn.style.display = 'block';
+                    processBtn.disabled = false;
+                } else {
+                    fileNameDisplay.textContent = 'Chưa có file nào được chọn';
+                    processBtn.style.display = 'none';
+                    processBtn.disabled = true;
+                }
+            });
+            
+            // Xử lý khi người dùng nhấn nút xử lý
+            processBtn.addEventListener('click', async function() {
+                if (!audioFileInput.files.length) {
+                    showError('Vui lòng chọn file âm thanh!');
+                    return;
+                }
+                
+                // Hiển thị trạng thái đang xử lý
+                loadingElement.style.display = 'block';
+                statusMessage.textContent = 'Đang xử lý file âm thanh...';
+                processBtn.disabled = true;
+                successMessage.style.display = 'none';
+                errorMessage.style.display = 'none';
+                transcriptElement.style.display = 'none';
+                formatsSection.style.display = 'none';
+                
+                try {
+                    // Gửi file âm thanh đến n8n webhook
+                    await window.n8nIntegration.sendAudio(
+                        audioFileInput.files[0],
+                        handleSuccess,
+                        handleError,
+                        updateStatus
+                    );
+                } catch (error) {
+                    handleError(error.message);
+                }
+            });
+            
+            // Xử lý khi nhận kết quả thành công
+            function handleSuccess(data) {
+                // Ẩn loading
+                loadingElement.style.display = 'none';
+                processBtn.disabled = false;
+                
+                // Hiển thị thông báo thành công
+                successMessage.style.display = 'block';
+                
+                // Lấy văn bản phiên âm
+                let transcriptText = '';
+                
+                if (data.plainText) {
+                    transcriptText = data.plainText;
+                } else if (data.data && data.data.transcript) {
+                    transcriptText = data.data.transcript;
+                } else if (Array.isArray(data) && data[0]?.results?.channels[0]?.alternatives[0]?.transcript) {
+                    transcriptText = data[0].results.channels[0].alternatives[0].transcript;
+                } else if (data.results?.channels[0]?.alternatives[0]?.transcript) {
+                    transcriptText = data.results.channels[0].alternatives[0].transcript;
+                }
+                
+                // Hiển thị văn bản
+                if (transcriptText) {
+                    transcriptElement.textContent = transcriptText;
+                    transcriptElement.style.display = 'block';
+                    formatsSection.style.display = 'flex';
+                    statusMessage.textContent = 'Chuyển đổi thành công!';
+                } else {
+                    showError('Không tìm thấy văn bản trong kết quả.');
+                }
+            }
+            
+            // Xử lý khi có lỗi
+            function handleError(message) {
+                loadingElement.style.display = 'none';
+                processBtn.disabled = false;
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+                statusMessage.textContent = 'Đã xảy ra lỗi khi xử lý.';
+            }
+            
+            // Cập nhật trạng thái
+            function updateStatus(message) {
+                statusMessage.textContent = message;
+            }
+            
+            // Hiển thị lỗi
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+            }
+            
+            // Xử lý nút quay lại
+            goBackBtn.addEventListener('click', function() {
+                window.location.href = 'index.html';
+            });
+            
+            // Kiểm tra xem có dữ liệu từ localStorage không
+            const storedData = localStorage.getItem('transcription_data');
+            if (storedData) {
+                try {
+                    const data = JSON.parse(storedData);
+                    handleSuccess(data);
+                    localStorage.removeItem('transcription_data');
+                } catch (e) {
+                    console.error('Lỗi xử lý dữ liệu từ localStorage:', e);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

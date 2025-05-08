@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chuyển đổi Voice thành Text</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-section {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .file-input {
+            display: none;
+        }
+        .file-label {
+            display: inline-block;
+            padding: 12px 20px;
+            background-color: #4285f4;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .file-name {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        .convert-btn {
+            padding: 12px 25px;
+            background-color: #0f9d58;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .convert-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .result-section {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        .transcript {
+            white-space: pre-wrap;
+            line-height: 1.5;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .download-section {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .download-btn {
+            padding: 10px 15px;
+            background-color: #db4437;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .download-btn:hover {
+            background-color: #c53929;
+        }
+        .error-message {
+            color: #db4437;
+            text-align: center;
+            margin: 20px 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chuyển đổi Voice thành Text</h1>
+        
+        <div class="upload-section">
+            <input type="file" id="audioFile" class="file-input" accept="audio/*">
+            <label for="audioFile" class="file-label">Chọn file âm thanh</label>
+            <button id="convertBtn" class="convert-btn" disabled>Chuyển đổi</button>
+            <div class="file-name" id="fileName"></div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Đang xử lý âm thanh...</p>
+        </div>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <div class="result-section" id="resultSection">
+            <h2>Kết quả chuyển đổi:</h2>
+            <div class="transcript" id="transcript"></div>
+            
+            <div class="download-section">
+                <button class="download-btn" id="downloadTxt">Tải xuống .TXT</button>
+                <button class="download-btn" id="downloadDocx">Tải xuống .DOCX</button>
+                <button class="download-btn" id="downloadSrt">Tải xuống .SRT</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Các biến lưu trữ dữ liệu
+        let fileContents = {
+            txt: '',
+            docx: '',
+            srt: ''
+        };
+        
+        // Các phần tử DOM
+        const audioFileInput = document.getElementById('audioFile');
+        const fileNameDisplay = document.getElementById('fileName');
+        const convertBtn = document.getElementById('convertBtn');
+        const loadingSection = document.getElementById('loading');
+        const resultSection = document.getElementById('resultSection');
+        const transcriptDisplay = document.getElementById('transcript');
+        const errorMessageDisplay = document.getElementById('errorMessage');
+        const downloadTxtBtn = document.getElementById('downloadTxt');
+        const downloadDocxBtn = document.getElementById('downloadDocx');
+        const downloadSrtBtn = document.getElementById('downloadSrt');
+        
+        // URL của webhook n8n - thay đổi URL này thành URL webhook của bạn
+        const webhookUrl = 'http://localhost:5678/webhook/audio-upload';
+        
+        // Xử lý khi người dùng chọn file
+        audioFileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                const file = this.files[0];
+                fileNameDisplay.textContent = file.name;
+                convertBtn.disabled = false;
+            } else {
+                fileNameDisplay.textContent = '';
+                convertBtn.disabled = true;
+            }
+        });
+        
+        // Xử lý khi người dùng nhấn nút chuyển đổi
+        convertBtn.addEventListener('click', async function() {
+            if (!audioFileInput.files.length) {
+                alert('Vui lòng chọn file âm thanh!');
+                return;
+            }
+            
+            // Hiển thị trạng thái đang tải
+            loadingSection.style.display = 'block';
+            resultSection.style.display = 'none';
+            errorMessageDisplay.style.display = 'none';
+            convertBtn.disabled = true;
+            
+            try {
+                const file = audioFileInput.files[0];
+                
+                // Tạo FormData để gửi file
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                // Tải file lên một dịch vụ lưu trữ tạm thời để lấy URL
+                // Đây là ví dụ, trong thực tế bạn cần thay thế bằng dịch vụ lưu trữ thực tế
+                // Hoặc sử dụng base64 để gửi trực tiếp nội dung file
+                
+                // Đọc file dưới dạng base64
+                const fileReader = new FileReader();
+                
+                fileReader.onload = async function(event) {
+                    const base64Audio = event.target.result;
+                    
+                    // Gửi dữ liệu đến webhook n8n
+                    try {
+                        const response = await fetch(webhookUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 
+                                url: "https://example.com/audio.mp3", // Thay thế bằng URL thực tế nếu có
+                                audio_base64: base64Audio
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        // Ẩn trạng thái đang tải
+                        loadingSection.style.display = 'none';
+                        
+                        if (data.status === 'success') {
+                            // Lưu nội dung file
+                            if (data.fileContents) {
+                                fileContents = data.fileContents;
+                            }
+                            
+                            // Hiển thị kết quả
+                            resultSection.style.display = 'block';
+                            transcriptDisplay.textContent = data.plainText || data.data?.transcript || '';
+                        } else {
+                            // Hiển thị lỗi
+                            errorMessageDisplay.textContent = data.error || 'Đã xảy ra lỗi khi xử lý âm thanh.';
+                            errorMessageDisplay.style.display = 'block';
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        loadingSection.style.display = 'none';
+                        errorMessageDisplay.textContent = 'Đã xảy ra lỗi khi kết nối với máy chủ.';
+                        errorMessageDisplay.style.display = 'block';
+                    }
+                    
+                    // Kích hoạt lại nút chuyển đổi
+                    convertBtn.disabled = false;
+                };
+                
+                fileReader.readAsDataURL(file);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                loadingSection.style.display = 'none';
+                errorMessageDisplay.textContent = 'Đã xảy ra lỗi: ' + error.message;
+                errorMessageDisplay.style.display = 'block';
+                convertBtn.disabled = false;
+            }
+        });
+        
+        // Hàm tạo và tải xuống file
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // Xử lý tải xuống TXT
+        downloadTxtBtn.addEventListener('click', function() {
+            if (fileContents.txt) {
+                downloadFile(fileContents.txt, 'transcript.txt', 'text/plain');
+            } else {
+                alert('Không có dữ liệu văn bản để tải xuống.');
+            }
+        });
+        
+        // Xử lý tải xuống DOCX
+        downloadDocxBtn.addEventListener('click', function() {
+            if (fileContents.docx) {
+                downloadFile(fileContents.docx, 'transcript.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+            } else {
+                alert('Không có dữ liệu DOCX để tải xuống.');
+            }
+        });
+        
+        // Xử lý tải xuống SRT
+        downloadSrtBtn.addEventListener('click', function() {
+            if (fileContents.srt) {
+                downloadFile(fileContents.srt, 'transcript.srt', 'text/srt');
+            } else {
+                alert('Không có dữ liệu SRT để tải xuống.');
+            }
+        });
+    </script>
+</body>
+</html>

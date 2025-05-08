@@ -1,0 +1,265 @@
+{
+  "name": "My workflow 4 simplified",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "audio-upload"
+      },
+      "name": "Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log what data we're receiving for debugging\nconst inputData = $input.all();\nconsole.log('Input data:', JSON.stringify(inputData, null, 2));\n\n// Extract audio URL or file information\nlet audioUrl = '';\nlet fileInfo = {};\n\n// Check if data is in first array item\nif (Array.isArray(inputData) && inputData.length > 0) {\n  console.log('Processing array item');\n  const item = inputData[0];\n  \n  // Check if we have binary data (for file info only)\n  if (item.binary) {\n    const binaryPropertyName = Object.keys(item.binary)[0];\n    const binaryData = item.binary[binaryPropertyName];\n    \n    fileInfo = {\n      fileName: binaryData.fileName,\n      fileSize: binaryData.fileSize,\n      mimeType: binaryData.mimeType\n    };\n  }\n  \n  // Check if we have a direct URL in the JSON\n  if (item.json && item.json.url) {\n    audioUrl = item.json.url;\n  }\n  // Or if we have an audio_url property\n  else if (item.json && item.json.audio_url) {\n    audioUrl = item.json.audio_url;\n  }\n}\n\n// If no URL found but we have webhook data with URL\nif (!audioUrl && $input.first().json) {\n  const json = $input.first().json;\n  if (json.url) {\n    audioUrl = json.url;\n  } else if (json.audio_url) {\n    audioUrl = json.audio_url;\n  }\n}\n\n// If we have binary data but no URL, we could generate a temporary URL or use a shared location\n// For now, we'll return detailed information for debugging\nif (!audioUrl) {\n  console.log('No audio URL found in the input data');\n  \n  // If we have binary data, we can mention that we have the file but need a URL\n  if (Object.keys(fileInfo).length > 0) {\n    return {\n      json: {\n        error: 'No audio URL provided, but file data is available',\n        fileInfo: fileInfo,\n        message: 'Please provide a URL to the audio file or upload it to a publicly accessible location',\n        inputStructure: JSON.stringify(inputData, null, 2)\n      }\n    };\n  } else {\n    // No URL and no file info\n    return {\n      json: {\n        error: 'No audio URL or file data found',\n        message: 'Please provide a URL to the audio file',\n        example: { url: 'https://example.com/audio.mp3' },\n        inputStructure: JSON.stringify(inputData, null, 2)\n      }\n    };\n  }\n}\n\n// Return the URL to be used with Deepgram API\nreturn {\n  json: {\n    url: audioUrl,\n    fileInfo: fileInfo\n  }\n};\n"
+      },
+      "name": "Fix Binary Data1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -580,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepgram.com/v1/listen",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "smart_format",
+              "value": "true"
+            },
+            {
+              "name": "language",
+              "value": "vi"
+            },
+            {
+              "name": "model",
+              "value": "nova-2"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Token b1b7e7fe73beb926b431700ceee69630c4d66292"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $('Webhook1').item.json.body.url }}"
+            }
+          ]
+        }
+      },
+      "name": "HTTP Request to Deepgram1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -400,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.hasOwnProperty('results') }}",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "name": "Check If Success1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "plainText",
+              "value": "={{ $json.results.channels[0].alternatives[0].transcript }}"
+            }
+          ],
+          "object": [
+            {
+              "name": "data",
+              "value": "={{ {\n  transcript: $json.results.channels[0].alternatives[0].transcript,\n  confidence: $json.results.channels[0].alternatives[0].confidence,\n  duration: $json.metadata.duration,\n  words: $json.results.channels[0].alternatives[0].words,\n  paragraphs: $json.results.channels[0].alternatives[0].paragraphs\n} }}"
+            }
+          ]
+        }
+      },
+      "name": "Success Message1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "error",
+              "value": "Failed to process audio"
+            },
+            {
+              "name": "status",
+              "value": "error"
+            }
+          ]
+        }
+      },
+      "name": "Error Message1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get the transcript text\nconst plainText = $input.first().json.plainText || '';\n\n// Function to create a simple DOCX file content\nfunction createDocxContent(text) {\n  // This is a simplified DOCX file structure\n  const docxContent = `\n    <?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n    <w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">\n      <w:body>\n        <w:p>\n          <w:r>\n            <w:t>${text}</w:t>\n          </w:r>\n        </w:p>\n      </w:body>\n    </w:document>\n  `;\n  \n  return docxContent;\n}\n\n// Function to create SRT content\nfunction createSrtContent(words) {\n  if (!words || !Array.isArray(words)) {\n    return '';\n  }\n  \n  let srtContent = '';\n  let counter = 1;\n  let currentLine = '';\n  let startTime = 0;\n  let endTime = 0;\n  \n  // Group words into lines (max 10 words per line)\n  for (let i = 0; i < words.length; i++) {\n    const word = words[i];\n    \n    if (i % 10 === 0) {\n      // Start a new line\n      if (i > 0) {\n        // Add the completed line to SRT content\n        srtContent += `${counter}\\n`;\n        srtContent += `${formatSrtTime(startTime)} --> ${formatSrtTime(endTime)}\\n`;\n        srtContent += `${currentLine.trim()}\\n\\n`;\n        counter++;\n      }\n      \n      // Reset for new line\n      currentLine = '';\n      startTime = word.start;\n    }\n    \n    // Add word to current line\n    currentLine += word.punctuated_word + ' ';\n    endTime = word.end;\n  }\n  \n  // Add the last line if there's any content\n  if (currentLine.trim()) {\n    srtContent += `${counter}\\n`;\n    srtContent += `${formatSrtTime(startTime)} --> ${formatSrtTime(endTime)}\\n`;\n    srtContent += `${currentLine.trim()}\\n\\n`;\n  }\n  \n  return srtContent;\n}\n\n// Helper function to format time for SRT\nfunction formatSrtTime(seconds) {\n  const hours = Math.floor(seconds / 3600);\n  const minutes = Math.floor((seconds % 3600) / 60);\n  const secs = Math.floor(seconds % 60);\n  const ms = Math.floor((seconds % 1) * 1000);\n  \n  return `${padZero(hours)}:${padZero(minutes)}:${padZero(secs)},${padZero(ms, 3)}`;\n}\n\n// Helper function to pad zeros\nfunction padZero(num, length = 2) {\n  return num.toString().padStart(length, '0');\n}\n\n// Get the data from the input\nconst inputData = $input.first().json;\nconst status = inputData.status;\nconst words = inputData.data?.words || [];\n\n// Create file contents\nconst txtContent = plainText;\nconst docxContent = createDocxContent(plainText);\nconst srtContent = createSrtContent(words);\n\n// Return the data with file contents\nreturn {\n  json: {\n    ...inputData,\n    fileContents: {\n      txt: txtContent,\n      docx: docxContent,\n      srt: srtContent\n    }\n  }\n};"
+      },
+      "name": "Create File Contents",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        400,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Fix Binary Data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix Binary Data1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request to Deepgram1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request to Deepgram1": {
+      "main": [
+        [
+          {
+            "node": "Check If Success1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Success1": {
+      "main": [
+        [
+          {
+            "node": "Success Message1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Message1": {
+      "main": [
+        [
+          {
+            "node": "Create File Contents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Message1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create File Contents": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "simplified-version"
+}
