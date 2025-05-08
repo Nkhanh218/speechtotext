@@ -425,16 +425,15 @@
             // Bắt đầu lắng nghe dữ liệu
             listenForPostData();
 
-            // Hàm polling để lấy kết quả từ n8n
+            // Hàm polling để lấy kết quả từ n8n thông qua API proxy
             async function pollForResults(maxAttempts, interval, executionId) {
-                // Lấy URL webhook từ localStorage hoặc sử dụng URL mặc định
-                const webhookUrl = localStorage.getItem('webhook_url') || 'https://namkhanh6503.app.n8n.cloud/webhook-test/audio-upload';
+                // Sử dụng API proxy endpoint của Vercel thay vì gọi trực tiếp đến n8n
+                const apiProxyEndpoint = window.location.origin + '/api/get-results';
 
-                // Tạo URL endpoint để lấy kết quả
-                const resultEndpoint = webhookUrl.replace('/audio-upload', '/results');
+                console.log('Sử dụng API proxy endpoint:', apiProxyEndpoint);
 
                 // Thêm executionId vào URL nếu có
-                const url = executionId ? `${resultEndpoint}?executionId=${executionId}` : resultEndpoint;
+                const url = executionId ? `${apiProxyEndpoint}?executionId=${executionId}` : apiProxyEndpoint;
 
                 for (let attempt = 0; attempt < maxAttempts; attempt++) {
                     document.querySelector('p').textContent = `Đang chờ kết quả... (${attempt + 1}/${maxAttempts})`;
@@ -500,3 +499,4 @@
     </script>
 </body>
 </html>
+
