@@ -467,6 +467,9 @@
                         localStorage.setItem('transcription_data', JSON.stringify(data));
                     }
 
+                    // Lưu URL webhook vào localStorage để trang kết quả có thể sử dụng
+                    localStorage.setItem('webhook_url', webhookUrl);
+
                     // Hỏi người dùng có muốn chuyển đến trang kết quả không
                     const openResultPage = confirm('Đã gửi yêu cầu thành công. Bạn có muốn chuyển đến trang kết quả ngay không?');
 

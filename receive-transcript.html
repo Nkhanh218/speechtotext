@@ -325,8 +325,32 @@
                 }
             }
 
-            function processReceivedData(data) {
+            async function processReceivedData(data) {
                 console.log('Đã nhận dữ liệu:', data);
+
+                // Kiểm tra nếu nhận được thông báo "Workflow was started"
+                if (data.message === "Workflow was started") {
+                    console.log('Nhận được thông báo "Workflow was started", bắt đầu polling...');
+                    document.querySelector('h1').textContent = 'Đang chờ kết quả từ workflow...';
+                    document.querySelector('p').textContent = 'Workflow đã được kích hoạt, đang chờ kết quả. Vui lòng đợi trong giây lát.';
+
+                    // Lấy executionId nếu có
+                    const executionId = data.executionId;
+                    console.log('Execution ID:', executionId);
+
+                    // Thực hiện polling để lấy kết quả
+                    const result = await pollForResults(15, 2000, executionId); // 15 lần, mỗi lần cách nhau 2 giây
+
+                    if (result) {
+                        // Cập nhật data với kết quả mới
+                        data = result;
+                        console.log('Kết quả polling:', data);
+                    } else {
+                        showError('Không nhận được kết quả sau nhiều lần thử. Vui lòng kiểm tra n8n workflow.');
+                        return;
+                    }
+                }
+
                 transcriptionData = data;
 
                 // Hiển thị kết quả
@@ -381,7 +405,7 @@
                     transcriptText = 'Không tìm thấy văn bản trong kết quả. Dữ liệu thô:\n\n' + JSON.stringify(data, null, 2);
                 }
 
-                if (transcriptText) {
+                if (transcriptText && transcriptText !== 'Không tìm thấy văn bản trong kết quả. Dữ liệu thô:') {
                     success.style.display = 'block';
                     formats.style.display = 'flex';
                     transcript.textContent = transcriptText;
@@ -401,12 +425,77 @@
             // Bắt đầu lắng nghe dữ liệu
             listenForPostData();
 
-            // Mô phỏng nhận dữ liệu sau 10 giây cho việc thử nghiệm
+            // Hàm polling để lấy kết quả từ n8n
+            async function pollForResults(maxAttempts, interval, executionId) {
+                // Lấy URL webhook từ localStorage hoặc sử dụng URL mặc định
+                const webhookUrl = localStorage.getItem('webhook_url') || 'https://namkhanh6503.app.n8n.cloud/webhook-test/audio-upload';
+
+                // Tạo URL endpoint để lấy kết quả
+                const resultEndpoint = webhookUrl.replace('/audio-upload', '/results');
+
+                // Thêm executionId vào URL nếu có
+                const url = executionId ? `${resultEndpoint}?executionId=${executionId}` : resultEndpoint;
+
+                for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    document.querySelector('p').textContent = `Đang chờ kết quả... (${attempt + 1}/${maxAttempts})`;
+
+                    try {
+                        // Chờ một khoảng thời gian
+                        await new Promise(resolve => setTimeout(resolve, interval));
+
+                        // Gửi request để lấy kết quả
+                        console.log(`Lần thử ${attempt + 1}: Gửi request đến ${url}`);
+                        const response = await fetch(url);
+
+                        if (!response.ok) {
+                            console.log(`Lần thử ${attempt + 1}: Lỗi HTTP ${response.status}`);
+                            continue;
+                        }
+
+                        const data = await response.json();
+                        console.log(`Lần thử ${attempt + 1}: Nhận được dữ liệu`, data);
+
+                        // Kiểm tra nếu có lỗi
+                        if (data.error) {
+                            console.log(`Lần thử ${attempt + 1}: Lỗi từ server`, data.error);
+                            continue;
+                        }
+
+                        // Kiểm tra nếu workflow vẫn đang chạy
+                        if (data.message === "Workflow is still running or failed") {
+                            console.log(`Lần thử ${attempt + 1}: Workflow vẫn đang chạy`);
+                            continue;
+                        }
+
+                        // Kiểm tra xem có phải là kết quả thực sự không
+                        if (data && (data.plainText || data.fileContents ||
+                            (data.results && data.results.channels) ||
+                            (Array.isArray(data) && data[0]?.results?.channels))) {
+                            return data;
+                        }
+
+                        // Nếu vẫn nhận được "Workflow was started", tiếp tục polling
+                        if (data.message === "Workflow was started") {
+                            continue;
+                        }
+
+                        // Nếu có dữ liệu khác, trả về
+                        return data;
+                    } catch (error) {
+                        console.log(`Lần thử ${attempt + 1}: Lỗi`, error.message);
+                    }
+                }
+
+                // Nếu không nhận được kết quả sau nhiều lần thử
+                return null;
+            }
+
+            // Mô phỏng nhận dữ liệu sau 30 giây cho việc thử nghiệm
             setTimeout(function() {
                 if (loading.style.display !== 'none') {
                     showError('Không nhận được dữ liệu từ server sau thời gian chờ. Vui lòng thử lại hoặc quay lại trang chủ.');
                 }
-            }, 10000);
+            }, 30000);
         });
     </script>
 </body>
