@@ -415,7 +415,7 @@
                 const apiEndpoint = window.location.origin + '/api/receive-transcript';
                 console.log('Gửi request đến API endpoint:', apiEndpoint);
                 console.log('Payload:', payload);
-                
+
                 // Gửi request đến API endpoint của Vercel
                 fetch(apiEndpoint, {
                     method: 'POST',
@@ -431,19 +431,36 @@
                         window.location.href = response.url;
                         return null; // Dừng chuỗi then vì đã chuyển hướng
                     }
-                    
+
                     if (!response.ok) {
                         throw new Error(`Lỗi HTTP: ${response.status}`);
                     }
-                    
+
                     // Nếu không phải redirect, chỉ khi đó mới parse JSON
                     return response.json();
                 })
-                .then(data => {
+                .then(async data => {
                     // Nếu đã chuyển hướng, data sẽ là null và đoạn code này sẽ không chạy
                     if (!data) return;
-                    
+
                     console.log('Webhook response data:', data);
+
+                    // Kiểm tra nếu nhận được thông báo "Workflow was started"
+                    if (data.message === "Workflow was started") {
+                        // Hiển thị thông báo đang xử lý
+                        loadingDiv.querySelector('p').textContent = "Workflow đã được kích hoạt, đang chờ kết quả...";
+
+                        // Thực hiện polling để lấy kết quả
+                        const result = await pollForResults(15, 2000); // 15 lần, mỗi lần cách nhau 2 giây
+
+                        if (result) {
+                            // Cập nhật data với kết quả mới
+                            data = result;
+                            console.log('Kết quả polling:', data);
+                        } else {
+                            throw new Error('Không nhận được kết quả sau nhiều lần thử. Vui lòng kiểm tra n8n workflow.');
+                        }
+                    }
 
                     // Lưu dữ liệu kết quả vào localStorage
                     if (data) {
@@ -826,6 +843,65 @@
                 let s = num + "";
                 while (s.length < size) s = "0" + s;
                 return s;
+            }
+
+            // Hàm polling để lấy kết quả
+            async function pollForResults(maxAttempts, interval) {
+                // Endpoint để lấy kết quả
+                const webhookUrl = webhookUrlInput.value.trim();
+                const resultEndpoint = webhookUrl.replace('/audio-upload', '/results');
+
+                for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    loadingDiv.querySelector('p').textContent = `Đang chờ kết quả... (${attempt + 1}/${maxAttempts})`;
+
+                    try {
+                        // Chờ một khoảng thời gian
+                        await new Promise(resolve => setTimeout(resolve, interval));
+
+                        // Gửi request để lấy kết quả
+                        const response = await fetch(resultEndpoint);
+
+                        if (!response.ok) {
+                            console.log(`Lần thử ${attempt + 1}: Lỗi HTTP ${response.status}`);
+                            continue;
+                        }
+
+                        const data = await response.json();
+                        console.log(`Lần thử ${attempt + 1}: Nhận được dữ liệu`, data);
+
+                        // Kiểm tra nếu có lỗi
+                        if (data.error) {
+                            console.log(`Lần thử ${attempt + 1}: Lỗi từ server`, data.error);
+                            continue;
+                        }
+
+                        // Kiểm tra nếu workflow vẫn đang chạy
+                        if (data.message === "Workflow is still running or failed") {
+                            console.log(`Lần thử ${attempt + 1}: Workflow vẫn đang chạy`);
+                            continue;
+                        }
+
+                        // Kiểm tra xem có phải là kết quả thực sự không
+                        if (data && (data.plainText || data.fileContents ||
+                            (data.results && data.results.channels) ||
+                            (Array.isArray(data) && data[0]?.results?.channels))) {
+                            return data;
+                        }
+
+                        // Nếu vẫn nhận được "Workflow was started", tiếp tục polling
+                        if (data.message === "Workflow was started") {
+                            continue;
+                        }
+
+                        // Nếu có dữ liệu khác, trả về
+                        return data;
+                    } catch (error) {
+                        console.log(`Lần thử ${attempt + 1}: Lỗi`, error.message);
+                    }
+                }
+
+                // Nếu không nhận được kết quả sau nhiều lần thử
+                return null;
             }
 
             // Hàm hiển thị lỗi
