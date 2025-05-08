@@ -144,7 +144,7 @@
             const downloadTxtBtn = document.getElementById('downloadTxt');
             const downloadDocxBtn = document.getElementById('downloadDocx');
             const downloadSrtBtn = document.getElementById('downloadSrt');
-            
+
             let transcriptionData = null;
 
             // Xử lý nút quay lại
@@ -155,7 +155,7 @@
             // Xử lý tải xuống .TXT
             downloadTxtBtn.addEventListener('click', function() {
                 if (!transcriptionData) return;
-                
+
                 let text = '';
                 if (typeof transcriptionData === 'string') {
                     text = transcriptionData;
@@ -166,19 +166,19 @@
                 } else if (transcriptionData.results?.channels[0]?.alternatives[0]?.transcript) {
                     text = transcriptionData.results.channels[0].alternatives[0].transcript;
                 }
-                
+
                 if (!text) {
                     alert('Không tìm thấy nội dung phiên âm để tải xuống');
                     return;
                 }
-                
+
                 downloadFile(text, 'transcript.txt', 'text/plain');
             });
 
             // Xử lý tải xuống .DOCX (thực tế là .RTF)
             downloadDocxBtn.addEventListener('click', function() {
                 if (!transcriptionData) return;
-                
+
                 let text = '';
                 if (typeof transcriptionData === 'string') {
                     text = transcriptionData;
@@ -189,16 +189,16 @@
                 } else if (transcriptionData.results?.channels[0]?.alternatives[0]?.transcript) {
                     text = transcriptionData.results.channels[0].alternatives[0].transcript;
                 }
-                
+
                 if (!text) {
                     alert('Không tìm thấy nội dung phiên âm để tải xuống');
                     return;
                 }
-                
+
                 // Tạo RTF
                 const rtfHeader = '{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset0 Arial;}}\\viewkind4\\uc1\\pard\\f0\\fs20 ';
                 const rtfFooter = '}\n';
-                
+
                 // Xử lý ký tự đặc biệt
                 const escapedText = text.replace(/[\\{}]/g, '\\$&')
                     .replace(/\n/g, '\\par\n')
@@ -210,7 +210,7 @@
                     .replace(/[ùúủũụưừứửữự]/g, 'u')
                     .replace(/[ỳýỷỹỵ]/g, 'y')
                     .replace(/đ/g, 'd');
-                
+
                 const rtfContent = rtfHeader + escapedText + rtfFooter;
                 downloadFile(rtfContent, 'transcript.rtf', 'application/rtf');
             });
@@ -218,40 +218,40 @@
             // Xử lý tải xuống .SRT
             downloadSrtBtn.addEventListener('click', function() {
                 if (!transcriptionData) return;
-                
+
                 let words = [];
                 if (Array.isArray(transcriptionData) && transcriptionData[0]?.results?.channels[0]?.alternatives[0]?.words) {
                     words = transcriptionData[0].results.channels[0].alternatives[0].words;
                 } else if (transcriptionData.results?.channels[0]?.alternatives[0]?.words) {
                     words = transcriptionData.results.channels[0].alternatives[0].words;
                 }
-                
+
                 if (words.length === 0) {
                     alert('Không tìm thấy dữ liệu chi tiết về từng từ để tạo file SRT');
                     return;
                 }
-                
+
                 // Tạo nội dung SRT
                 let srtContent = '';
                 const chunkSize = 10; // Số từ trong một subtitle
-                
+
                 for (let i = 0; i < words.length; i += chunkSize) {
                     const chunk = words.slice(i, i + chunkSize);
                     if (chunk.length === 0) continue;
-                    
+
                     const chunkNum = Math.floor(i / chunkSize) + 1;
                     const startTime = formatSrtTime(chunk[0].start);
                     const endTime = formatSrtTime(chunk[chunk.length - 1].end);
                     const text = chunk.map(w => w.punctuated_word || w.word).join(' ');
-                    
+
                     srtContent += `${chunkNum}\n${startTime} --> ${endTime}\n${text}\n\n`;
                 }
-                
+
                 if (!srtContent) {
                     alert('Không thể tạo nội dung SRT');
                     return;
                 }
-                
+
                 downloadFile(srtContent, 'transcript.srt', 'text/plain');
             });
 
@@ -277,7 +277,7 @@
                 const minutes = Math.floor((seconds % 3600) / 60);
                 const secs = Math.floor(seconds % 60);
                 const ms = Math.floor((seconds - Math.floor(seconds)) * 1000);
-                
+
                 return `${padZero(hours, 2)}:${padZero(minutes, 2)}:${padZero(secs, 2)},${padZero(ms, 3)}`;
             }
 
@@ -307,7 +307,7 @@
                 // Hoặc thiết lập một listener để nhận dữ liệu qua postMessage
                 window.addEventListener('message', function(event) {
                     if (event.origin !== window.location.origin) return;
-                    
+
                     if (event.data && event.data.type === 'transcription') {
                         processReceivedData(event.data.result);
                     }
@@ -328,15 +328,43 @@
             function processReceivedData(data) {
                 console.log('Đã nhận dữ liệu:', data);
                 transcriptionData = data;
-                
+
                 // Hiển thị kết quả
                 loading.style.display = 'none';
-                success.style.display = 'block';
-                formats.style.display = 'flex';
-                
+
                 // Tìm và hiển thị nội dung văn bản
                 let transcriptText = '';
-                if (typeof data === 'string') {
+
+                // Kiểm tra nếu có lỗi từ n8n
+                if (data.error) {
+                    showError(`Lỗi từ n8n: ${data.error}`);
+                    return;
+                }
+
+                // Kiểm tra nếu dữ liệu là từ n8n workflow
+                if (data.executionId || data.workflowData) {
+                    console.log('Dữ liệu từ n8n workflow');
+
+                    // Tìm dữ liệu trong các định dạng khác nhau từ n8n
+                    if (data.data && data.data.results) {
+                        // Dữ liệu từ node HTTP Request
+                        data = data.data;
+                    } else if (data.json && data.json.results) {
+                        // Dữ liệu từ node Function
+                        data = data.json;
+                    } else if (data.content && typeof data.content === 'string' && data.content.includes('Transcription Result')) {
+                        // Dữ liệu từ node Set
+                        const match = data.content.match(/Transcription Result\s*\n\s*\n([\s\S]+)/);
+                        if (match && match[1]) {
+                            transcriptText = match[1].trim();
+                        }
+                    }
+                }
+
+                // Xử lý định dạng JSON từ Deepgram
+                if (transcriptText) {
+                    // Đã tìm thấy văn bản từ n8n Set node
+                } else if (typeof data === 'string') {
                     transcriptText = data;
                 } else if (data.transcript) {
                     transcriptText = data.transcript;
@@ -344,12 +372,23 @@
                     transcriptText = data[0].results.channels[0].alternatives[0].transcript;
                 } else if (data.results?.channels[0]?.alternatives[0]?.transcript) {
                     transcriptText = data.results.channels[0].alternatives[0].transcript;
+                } else if (data.code && data.message) {
+                    // Xử lý trường hợp lỗi
+                    transcriptText = `Lỗi: ${data.code} - ${data.message}`;
+                    showError(transcriptText);
+                    return;
                 } else {
                     transcriptText = 'Không tìm thấy văn bản trong kết quả. Dữ liệu thô:\n\n' + JSON.stringify(data, null, 2);
                 }
-                
-                transcript.textContent = transcriptText;
-                transcript.style.display = 'block';
+
+                if (transcriptText) {
+                    success.style.display = 'block';
+                    formats.style.display = 'flex';
+                    transcript.textContent = transcriptText;
+                    transcript.style.display = 'block';
+                } else {
+                    showError('Không tìm thấy văn bản trong kết quả.');
+                }
             }
 
             function showError(message) {
